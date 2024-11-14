@@ -5,6 +5,7 @@ from digitalio import DigitalInOut, Direction, Pull
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306
 import time
+
 # Setting some variables for our reset pin etc.
 RESET_PIN = digitalio.DigitalInOut(board.D4)
 # Very important... This lets py-gaugette 'know' what pins to use in order to reset the display
@@ -28,11 +29,27 @@ button_D.pull = Pull.UP
 oled.fill(0)
 oled.show()
 
+def drawMenu(menuHeader, menuSubheader, menuOptions, oled, image, draw):
+    optionsPos = [29, 39, 49]
+    # clear display
+    draw.rectangle((0, 0, oled.width, oled.height), outline=0, fill=0)
+    # draw header and sub header
+    draw.text((0, 0), menuHeader, font=headerFont, fill=255)
+    draw.text((0,12), menuSubheader, font=headerFont, fill=255)
+    # draw the menu options
+    for index in range(len(menuOptions)):
+        draw.text((0, optionsPos[index]), menuOptions[index], font=menuFont, fill=255)
+    oled.image(image)
+    oled.show()
+    return
 
-# define menu
-topMenuHeading = "Top Level Menu"
-topMenuOptions = ["  Option 1", "  Option 2", "  Option 3"]
-topMenuOptionsLocations = [16, 32, 48]
+# menu contents
+menuHeader = "Menu Header"
+menuSubheader = "Menu Subheader"
+menuOptions = ["  Option 1", "  Option 2", "  Option 3"]
+topMenuOptionsLocations = [29, 39, 49]
+
+
 
 # Create blank image for drawing.
 image = Image.new("1", (oled.width, oled.height))
@@ -42,15 +59,6 @@ draw = ImageDraw.Draw(image)
 headerFont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 12)
 menuFont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 10)
 
-def renderMenu(headerText, optionsText, optionsPos):
-    # Draw the menu header
-    draw.text((0, 0), headerText, font=headerFount, fill=255)
-    # draw the menu options
-    for index in range(len(optionsText)):
-        draw.text((0, optionsPos[index]), optionsText[index], font=menuFont, fill=255)
-    oled.image(image)
-    oled.show()
-    return
 
 def renderCarrot(optionsPos, pick):
     # Draw the carrots
@@ -63,7 +71,7 @@ def renderCarrot(optionsPos, pick):
     oled.image(image)
     oled.show()
     
-renderMenu(topMenuHeading, topMenuOptions, topMenuOptionsLocations)
+drawMenu(menuHeader, menuSubheader, menuOptions, oled, image, draw)
 
 currentPick = 0
 renderCarrot(topMenuOptionsLocations, currentPick)
@@ -72,7 +80,7 @@ while True:
         pass
     else:
         currentPick = currentPick + 1
-        currentPick = currentPick % len(topMenuOptions)
+        currentPick = currentPick % len(menuOptions)
         renderCarrot(topMenuOptionsLocations, currentPick)
         time.sleep(0.2)
         
@@ -81,7 +89,7 @@ while True:
         pass
     else:
         currentPick = currentPick - 1
-        currentPick = currentPick % len(topMenuOptions)
+        currentPick = currentPick % len(menuOptions)
         renderCarrot(topMenuOptionsLocations, currentPick)
         time.sleep(0.2)
 
