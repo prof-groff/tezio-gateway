@@ -8,6 +8,12 @@ import time
 # import digitalio
 from digitalio import DigitalInOut, Direction, Pull
 
+# other tools
+import json
+import random
+
+with open('bip39VocabTree.json') as f:
+    bip39VocabTree = json.load(f)
 
 
 class menu:
@@ -97,11 +103,13 @@ class verticalMenu(menu): # child of menu
         return self.selection
                 
 class enterWordMenu(menu):         
-    def __init__(self):
-        menu.__init__(self, vocabTree) # inherit __init__ of parent
-        self.choice = 0
+    def __init__(self, vocabTree):
+        menu.__init__(self) # inherit __init__ of parent
+        self.choiceIdx = 0
+        self.choices = None
         self.vocabTree = vocabTree
         self.selections = ''
+        self.subTree = None
 
         self.button_U = DigitalInOut(board.D17)
         self.button_U.direction = Direction.INPUT
@@ -111,18 +119,87 @@ class enterWordMenu(menu):
         self.button_D.direction = Direction.INPUT
         self.button_D.pull = Pull.UP
 
-        self.button_R = DigitalInOut(board.D4)
-        self.button_R.direction = Direction.INPUT
-        self.button_R.pull = Pull.UP
-
-        self.button_L = DigitalInOut(board.D4)
+        self.button_L = DigitalInOut(board.D27)
         self.button_L.direction = Direction.INPUT
         self.button_L.pull = Pull.UP
-        return
 
-myMenu = verticalMenu()
-myMenu.header = 'Menu Header'
-myMenu.subHeader = 'Menu Subheader'
-myMenu.options = ['  Option 1', '  Option 2', '  Option 3']
-selection = myMenu.waitForSelection()
-print(selection)
+        self.button_R = DigitalInOut(board.D23)
+        self.button_R.direction = Direction.INPUT
+        self.button_R.pull = Pull.UP
+        return
+    def getSubTree(self):
+        self.subTree = self.vocabTree
+        for letter in self.selections:
+            self.subTree = self.subTree[letter]
+        return
+    def getLetterOptions(self):
+        if isinstance(self.subTree, dict):
+            self.choices = list(self.subTree.keys())
+            return True
+        else:
+            return False
+    def updateOptionsMenu(self):
+        if isinstance(self.subTree[self.choices[self.choiceIdx]], dict):
+            self.options[0] = self.selections + self.choices[self.choiceIdx] 
+        else:
+            self.options[0] = self.selections + self.choices[self.choiceIdx] + ' ' + self.subTree[self.choices[self.choiceIdx]][0]    
+        self.display()
+
+    
+    def getChoicesAndNextChoice(self):
+        # update subtree
+        self.getSubTree()
+        # determine valid letter options
+        if self.getLetterOptions(): # there are more letters to choose
+            if '*' in self.choices:
+                self.choiceIdx = self.options.index('*')
+            else:
+                self.choiceIdx = random.randrange(len(self.choices))
+            return True
+        else:
+            return False
+            
+
+    def makingSelections(self):
+        self.getChoicesAndNextChoice()
+        self.updateOptionsMenu()
+        waiting = True
+        while waiting:
+            if self.button_D.value:  # button is released
+                pass
+            else:
+                self.choiceIdx+=1
+                self.choiceIdx = self.choiceIdx % len(self.choices)
+                self.updateOptionsMenu()
+                time.sleep(0.4)
+        
+
+            if self.button_U.value:  # button is released
+                pass
+            else:
+                self.choiceIdx-=1
+                self.choiceIdx = self.choiceIdx % len(self.choices)
+                self.updateOptionsMenu()
+                time.sleep(0.4)
+
+            if self.button_R.value:  # button is released
+                pass
+            else:
+                time.sleep(0.4)
+                self.selections = self.selections + self.choices[self.choiceIdx]
+                if self.getChoicesAndNextChoice():
+                    self.updateOptionsMenu()
+                else:
+                    waiting = False
+            
+        return self.getSubTree()
+
+  
+        
+
+myMenu = enterWordMenu(bip39VocabTree)
+myMenu.header = 'Enter Mnemonic'
+myMenu.subHeader = 'Enter Word #1'
+myMenu.options = ['', '', '']
+choice = myMenu.makingSelections()
+print(choice)
