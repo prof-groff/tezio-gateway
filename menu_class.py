@@ -5,29 +5,31 @@ import adafruit_ssd1306
 import time
 
 # import tools for the buttons
-# import digitalio
 from digitalio import DigitalInOut, Direction, Pull
 
 # other tools
 import json
 import random
 
+# import BIP39 vocab tree 
 with open('bip39VocabTree.json') as f:
     bip39VocabTree = json.load(f)
 
+OLED_WIDTH = 128
+OLED_HEIGHT = 64
 
 class menu:
     def __init__(self):
         # initialize display
         self.i2c = board.I2C()  # uses board.SCL and board.SDA
         # Create the SSD1306 OLED class.
-        self.oled = adafruit_ssd1306.SSD1306_I2C(128, 64, self.i2c)
+        self.oled = adafruit_ssd1306.SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, self.i2c)
         # Create blank image for drawing.
         self.image = Image.new("1", (self.oled.width, self.oled.height))
         self.draw = ImageDraw.Draw(self.image)
+        self.title = ''
         self.header = ''
-        self.subHeader = ''
-        self.options = ['', '', '']
+        self.choices = ['', '', '']
         # Load a font in 2 different sizes.
         self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 11)
         return
@@ -37,16 +39,16 @@ class menu:
         # clear display
         self.draw.rectangle((0, 0, self.oled.width, self.oled.height), outline=0, fill=0)
         # draw header and sub header
-        self.draw.text((0, 0), self.header, font=self.font, fill=255)
-        self.draw.text((0,11), self.subHeader, font=self.font, fill=255)
+        self.draw.text((0, 0), self.title, font=self.font, fill=255)
+        self.draw.text((0,11), self.header, font=self.font, fill=255)
         # draw the menu options
-        for index in range(len(self.options)):
-            self.draw.text((0, optionsPos[index]), self.options[index], font=self.font, fill=255)
+        for index in range(len(self.choices)):
+            self.draw.text((0, optionsPos[index]), self.choices[index], font=self.font, fill=255)
         self.oled.image(self.image)
         self.oled.show()
         return
 
-class verticalMenu(menu): # child of menu
+class selectMnemonicLength(menu): # child of menu
     def __init__(self):
         menu.__init__(self) # inherit __init__ of parent
         self.selection = 0
@@ -61,26 +63,43 @@ class verticalMenu(menu): # child of menu
         self.button_C = DigitalInOut(board.D4)
         self.button_C.direction = Direction.INPUT
         self.button_C.pull = Pull.UP
-        self.allOptions = None
+        self.allChoices = None
         return
     
     def updateChoice(self):
-        lenAllOptions = len(self.allOptions)
-        if len(self.allOptions) <= 3:
-            startingIdx = 0
-            endingIdx = len(self.allOptions)-1
+        nChoices = len(self.allChoices)
+        print(nChoices, self.selection)
+        if nChoices <= 3:
+            idxi = 0
+            idxf = nChoices - 1
+            for ii, option in enumerate(self.allChoices[idxi:idxf+1]):
+                if ii == self.selection - idxi:
+                    self.choices[ii] = '>' + self.allChoices[idxi+ii]
+                else:
+                    self.choices[ii] = ' ' + self.allChoices[idxi+ii] 
         else:
-            if self.selection < 3:
-                startingIdx = 0
-                endingIdx = 2
-            else:
-                startingIdx = self.selection - 2
-                endingIdx = self.selection
-        for ii, option in enumerate(self.allOptions[startingIdx:endingIdx+1]):
-            if ii == self.selection - startingIdx:
-                self.options[ii] = '>' + self.allOptions[startingIdx+ii]
-            else:
-                self.options[ii] = ' ' + self.allOptions[startingIdx+ii]
+            if self.selection < 2:
+                idxi = 0
+                idxf = 1
+                self.choices[2] = ' down'
+                for ii, option in enumerate(self.allChoices[idxi:idxf+1]):
+                    if ii == self.selection - idxi:
+                        self.choices[ii] = '>' + self.allChoices[idxi+ii]
+                    else:
+                        self.choices[ii] = ' ' + self.allChoices[idxi+ii] 
+            elif (self.selection >= 2) and (self.selection <= (nChoices - 1 - 2)):
+                self.choices[0] = ' up'
+                self.choices[2] = ' down'
+                self.choices[1] = '>' + self.allChoices[self.selection]
+            else: # self.selection > nChoices - 1 - 2
+                idxi = nChoices - 1 - 1
+                idxf = nChoices - 1
+                self.choices[0] = ' up'
+                for ii, option in enumerate(self.allChoices[idxi:idxf+1]):
+                    if ii == self.selection - idxi:
+                        self.choices[ii+1] = '>' + self.allChoices[idxi+ii]
+                    else:
+                        self.choices[ii+1] = ' ' + self.allChoices[idxi+ii] 
         self.display()
         return
     
@@ -92,7 +111,7 @@ class verticalMenu(menu): # child of menu
                 pass
             else:
                 self.selection+=1
-                self.selection = self.selection % len(self.allOptions)
+                self.selection = self.selection % len(self.allChoices)
                 self.updateChoice()
                 time.sleep(0.2)
         
@@ -100,7 +119,7 @@ class verticalMenu(menu): # child of menu
                 pass
             else:
                 self.selection-=1
-                self.selection = self.selection % len(self.allOptions)
+                self.selection = self.selection % len(self.allChoices)
                 self.updateChoice()
                 time.sleep(0.2)
 
@@ -111,11 +130,11 @@ class verticalMenu(menu): # child of menu
             
         return self.selection
                 
-class enterWordMenu(menu):         
+class wordEntry(menu):         
     def __init__(self, vocabTree):
         menu.__init__(self) # inherit __init__ of parent
         self.choiceIdx = 0
-        self.choices = None
+        self.options = None
         self.vocabTree = vocabTree
         self.selections = ''
         self.subTree = None
@@ -143,15 +162,15 @@ class enterWordMenu(menu):
         return
     def getLetterOptions(self):
         if isinstance(self.subTree, dict):
-            self.choices = list(self.subTree.keys())
+            self.options = list(self.subTree.keys())
             return True
         else:
             return False
     def updateOptionsMenu(self):
-        if isinstance(self.subTree[self.choices[self.choiceIdx]], dict):
-            self.options[0] = self.selections + self.choices[self.choiceIdx] 
+        if isinstance(self.subTree[self.options[self.choiceIdx]], dict):
+            self.choices[0] = self.selections + self.options[self.choiceIdx] 
         else:
-            self.options[0] = self.selections + self.choices[self.choiceIdx] + ' ' + self.subTree[self.choices[self.choiceIdx]][0]    
+            self.choices[0] = self.selections + self.options[self.choiceIdx] + ' ' + self.subTree[self.options[self.choiceIdx]][0]    
         self.display()
 
     
@@ -160,10 +179,10 @@ class enterWordMenu(menu):
         self.getSubTree()
         # determine valid letter options
         if self.getLetterOptions(): # there are more letters to choose
-            if '*' in self.choices:
+            if '*' in self.options:
                 self.choiceIdx = self.options.index('*')
             else:
-                self.choiceIdx = random.randrange(len(self.choices))
+                self.choiceIdx = random.randrange(len(self.options))
             return True
         else:
             return False
@@ -178,7 +197,7 @@ class enterWordMenu(menu):
                 pass
             else:
                 self.choiceIdx+=1
-                self.choiceIdx = self.choiceIdx % len(self.choices)
+                self.choiceIdx = self.choiceIdx % len(self.options)
                 self.updateOptionsMenu()
                 time.sleep(0.4)
         
@@ -187,7 +206,7 @@ class enterWordMenu(menu):
                 pass
             else:
                 self.choiceIdx-=1
-                self.choiceIdx = self.choiceIdx % len(self.choices)
+                self.choiceIdx = self.choiceIdx % len(self.options)
                 self.updateOptionsMenu()
                 time.sleep(0.4)
 
@@ -195,39 +214,51 @@ class enterWordMenu(menu):
                 pass
             else:
                 time.sleep(0.4)
-                self.selections = self.selections + self.choices[self.choiceIdx]
+                self.selections = self.selections + self.options[self.choiceIdx]
                 if self.getChoicesAndNextChoice():
                     self.updateOptionsMenu()
                 else:
                     waiting = False
             
-        return self.getSubTree()
+        return True
 
+
+
+
+
+def confirmWord(mnemonicPhrase):
+    confirm = menu()
+    confirm.title = 'Enter Mnemonic'
+    confirm.header = 'Confirm Word #' + len(mnemonicPhrase)
+    confirm.choices[0] = ' ' + mnemonicPhrase[-1]
+    confirm.choices[1] = ' '
 
 level1 = menu()
-level1.header = 'BIP39 Mnemonic'
-level1.subHeader = 'Phrase Input'
+level1.title = 'BIP39 Mnemonic'
+level1.header = 'Phrase Input'
 level1.display()
 time.sleep(2)
 
-level2 = verticalMenu()
-level2.header = 'Mnemonic Phrase'
-level2.subHeader = 'Length'
-level2.allOptions = ['12', '15', '18', '21', '24']
-nWords = level2.waitForSelection()
+level2 = selectMnemonicLength()
+level2.title = 'Mnemonic Phrase'
+level2.header = 'Length'
+level2.allChoices = ['12', '15', '18', '21', '24']
+leterIdx = level2.waitForSelection()
+nWords = int(level2.allChoices[leterIdx])
+
 print(nWords)
 
 mnemonicPhrase = []
 mnemonicIdx = []
 while len(mnemonicPhrase) < nWords:
-    level3 = enterWordMenu(bip39VocabTree)
-    level3.header = 'Enter Mnemonic'
-    level3.subHeader = 'Enter Word #1'
-    level3.options = ['', '', '']
-    choice = level3.makingSelections()
-    menmonicPhrase = mnemonicPhrase + [choice[0]]
-    mnemonicIdx = mnemonicIdx + [choice[1]]
+    level3 = wordEntry(bip39VocabTree)
+    level3.title = 'Enter Mnemonic'
+    level3.header = 'Enter Word #1'
+    level3.choices = ['', '', '']
+    level3.makingSelections()
+    mnemonicPhrase = mnemonicPhrase + [level3.subTree[0]]
+    mnemonicIdx = mnemonicIdx + [level3.subTree[1]]
 
-print(choice)
+print(mnemonicPhrase)
 
 
