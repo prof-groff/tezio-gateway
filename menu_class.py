@@ -221,12 +221,13 @@ class wordEntry(menu):
                     waiting = False
             
         return True
+    
+
+def getRandomWord(currentWord, vocabTree):
+    pass
 
 
-
-
-
-def confirmWord(mnemonicPhrase):
+def confirmPhrase(mnemonicPhrase):
     confirm = menu()
     confirm.title = 'Enter Mnemonic'
     confirm.header = 'Confirm Word #' + len(mnemonicPhrase)
@@ -253,12 +254,13 @@ mnemonicIdx = []
 while len(mnemonicPhrase) < nWords:
     level3 = wordEntry(bip39VocabTree)
     level3.title = 'Enter Mnemonic'
-    level3.header = 'Enter Word #1'
+    level3.header = 'Enter Word #' + str(len(mnemonicPhrase)+1)
     level3.choices = ['', '', '']
     level3.makingSelections()
     mnemonicPhrase = mnemonicPhrase + [level3.subTree[0]]
     mnemonicIdx = mnemonicIdx + [level3.subTree[1]]
 
 print(mnemonicPhrase)
+print(mnemonicIdx)
 
 
