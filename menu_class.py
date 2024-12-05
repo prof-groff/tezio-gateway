@@ -11,9 +11,12 @@ from digitalio import DigitalInOut, Direction, Pull
 import json
 import random
 
-# import BIP39 vocab tree 
+# import BIP39 vocab and vocab tree 
 with open('bip39VocabTree.json') as f:
     bip39VocabTree = json.load(f)
+
+with open('bip39Vocab.json') as f:
+    bip39Vocab = json.load(f)
 
 OLED_WIDTH = 128
 OLED_HEIGHT = 64
@@ -223,16 +226,66 @@ class wordEntry(menu):
         return True
     
 
-def getRandomWord(currentWord, vocabTree):
-    pass
+class mnemonicVerify(menu):
+    def __init__(self, vocab, mnemonic):
+        menu.__init__(self) # inherit __init__ of parent
+        self.vocab = vocab
+        self.mnemonic = mnemonic
+        self.currentWord = ''
+        self.randomWord = ''
+        self.choiceTxt = ''
+        self.button_L = DigitalInOut(board.D27)
+        self.button_L.direction = Direction.INPUT
+        self.button_L.pull = Pull.UP
+        self.button_R = DigitalInOut(board.D23)
+        self.button_R.direction = Direction.INPUT
+        self.button_R.pull = Pull.UP
+        return
+    def getRandomWord(self):
+        searching = True
+        while searching:
+            self.randomWord = random.choice(self.vocab)
+            if self.randomWord == self.currentWord:
+                pass # continue the search 
+            else:
+                searching = False
+        return
+    def getWordChoice(self):
+        self.getRandomWord()
+        self.choiceTxt = random.choice([['left', self.currentWord + ' ' + self.randomWord], ['right', self.randomWord + ' ' + self.currentWord]])
+        return
+    def confirmPhrase(self):
+        self.title = 'Confirm Mnemonic'
+        self.header = 'Choose < or >'
+        for idx, word in enumerate(self.mnemonic):
+            self.currentWord = word
+            self.getWordChoice()
+            correctWord = self.choiceTxt[0]
+            self.choices[0] = self.choiceTxt[1]
+            self.display()
+            waiting = True
+            while waiting:
+                if self.button_R.value:  # button is released
+                    pass
+                else:
+                    if correctWord == 'right':
+                        print('YES')
+                    else:
+                        print('NO')
+                    waiting = False
+                    time.sleep(0.4)
+
+                if self.button_L.value:  # button is released
+                    pass
+                else:
+                    if correctWord == 'left':
+                        print('YES')
+                    else:
+                        print('NO')
+                    waiting = False
+                    time.sleep(0.4)
 
 
-def confirmPhrase(mnemonicPhrase):
-    confirm = menu()
-    confirm.title = 'Enter Mnemonic'
-    confirm.header = 'Confirm Word #' + len(mnemonicPhrase)
-    confirm.choices[0] = ' ' + mnemonicPhrase[-1]
-    confirm.choices[1] = ' '
 
 level1 = menu()
 level1.title = 'BIP39 Mnemonic'
@@ -262,5 +315,8 @@ while len(mnemonicPhrase) < nWords:
 
 print(mnemonicPhrase)
 print(mnemonicIdx)
+
+confirmMenu = mnemonicVerify(bip39Vocab,mnemonicPhrase)
+confirmMenu.confirmPhrase()
 
 
